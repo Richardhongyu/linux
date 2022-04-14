@@ -93,6 +93,7 @@ pub mod platform;
 mod types;
 pub mod user_ptr;
 
+pub mod cpumask;
 #[doc(hidden)]
 pub use build_error::build_error;
 
