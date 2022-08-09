@@ -5,6 +5,7 @@
 mod concat_idents;
 mod helpers;
 mod module;
+mod of_id;
 mod vtable;
 
 use proc_macro::TokenStream;
@@ -187,4 +188,45 @@ pub fn vtable(attr: TokenStream, ts: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn concat_idents(ts: TokenStream) -> TokenStream {
     concat_idents::concat_idents(ts)
+}
+
+/// Implements a get_id_info function for drivers.
+///
+/// Some linux drivers, e.g. Platform drivers, need to get info from of_id. This macro helps implements the get_id_info
+/// function for those drivers.
+///
+/// # Examples
+///
+/// ```ignore
+/// use crate::{
+///     bindings,
+///     device::{self, RawDevice},
+///     driver,
+///     of,
+/// };
+///
+/// pub trait Driver {
+///     type IdInfo: 'static = ();
+///     const OF_DEVICE_ID_TABLE: Option<driver::IdTable<'static, of::DeviceId, Self::IdInfo>> = None;
+/// }
+///
+/// pub struct Device {
+///     ptr: *mut bindings::bar_device,
+/// }
+///
+/// // SAFETY: The device returned by `raw_device` is the raw bar device.
+/// unsafe impl device::RawDevice for Device {
+///     fn raw_device(&self) -> *mut bindings::device {
+///         // SAFETY: By the type invariants, we know that `self.ptr` is non-null and valid.
+///         unsafe { &mut (*self.ptr).dev }
+///     }
+/// }
+///
+/// // Implements a `#[GetIdInfo]` function
+/// #[derive(GetIdInfo)]
+/// pub struct Foo<T: Driver>(T);
+/// ```
+#[proc_macro_derive(GetIdInfo)]
+pub fn derive_get_id_info(ts: TokenStream) -> TokenStream {
+    of_id::derive_get_id_info(ts)
 }
