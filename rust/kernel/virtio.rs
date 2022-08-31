@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+﻿// SPDX-License-Identifier: GPL-2.0
 
 //! Virtio.
 //!
@@ -208,4 +208,53 @@ macro_rules! define_virtio_id_table {
     ($data_type:ty, $($t:tt)*) => {
         $crate::define_id_table!(ID_TABLE, $crate::virtio::DeviceId, $data_type, $($t)*);
     };
+}
+
+/// Wraps the kernel's `struct virtqueue`.
+///
+/// # Invariants
+///
+/// The pointer `VirtQueue::ptr` is non-null and valid.
+pub struct VirtQueue {
+    ptr: *mut bindings::virtqueue,
+}
+
+impl VirtQueue {
+    /// Creates a new `VirtQueue` instance from a raw pointer.
+    ///
+    /// # Safety
+    ///
+    /// Callers must ensure that `ptr` is non-null and valid when the function is called, and that
+    /// it remains valid for the lifetime of the return [`VirtQueue`] instance.
+    pub unsafe fn new(        
+        index: c_types::c_uint,
+        num: c_types::c_uint,
+        vring_align: c_types::c_uint,
+        vdev: *mut virtio_device,
+        weak_barriers: bool_,
+        may_reduce_num: bool_,
+        ctx: bool_,
+        notify: ::core::option::Option<unsafe extern "C" fn(vq: *mut virtqueue) -> bool_>,
+        callback: ::core::option::Option<unsafe extern "C" fn(vq: *mut virtqueue)>,
+        name: *const c_types::c_char) -> Self {
+        // SAFETY: 
+        unsafe{
+            Self {
+                 bindings::vring_create_virtqueue(index, num, vring_align, vdev, weak_barriers, 
+            may_reduce_num, ctx, notify, callback, name) 
+        }
+        }
+    }
+
+    pub unsafe fn from_ptr(ptr: *mut bindings::virtqueue) -> Self {
+        // INVARIANT: The safety requirements of the function ensure the lifetime invariant.
+        Self { ptr }
+    }
+}
+
+impl Deref for VirtQueue {
+    fn deref(&mut self) {
+        // SAFETY: The type invariant guarantees that the [`VirtQueue`] is valid.
+        unsafe { bindings::vring_del_virtqueue(self.ptr) };
+    }
 }

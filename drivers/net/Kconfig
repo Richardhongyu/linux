@@ -417,6 +417,18 @@ config VIRTIO_NET
 	  This is the virtual network driver for virtio.  It can be used with
 	  QEMU based VMMs (like KVM or Xen).  Say Y or M.
 
+config VIRTIO_NET_RUST
+	tristate "Rust implementation of Virtio network driver"
+	depends on RUST && VIRTIO_NET
+	help
+	  This driver provides a Rust-based virtio network driver. It is currently
+	  in development and only has the basic function.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called virtio_net_rust
+
+	  If unsure, say N.
+
 config NLMON
 	tristate "Virtual netlink monitoring device"
 	help

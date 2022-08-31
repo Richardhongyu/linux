@@ -16,6 +16,21 @@ pub mod filter;
 #[repr(transparent)]
 pub struct Device(UnsafeCell<bindings::net_device>);
 
+impl Device {
+    pub unsafe fn alloc_etherdev_mqs(sizeof:i32, count: u32) -> Result<ARef<Self>> {
+        let res = from_kernel_err_ptr(unsafe {
+                bindings::alloc_etherdev_mqs(sizeof, count, count)
+        })?;
+        
+        let net: ARef<_> = unsafe { &*(dev as *const Device) }.into();
+        Ok(task)
+    }
+
+    pub fn set_priv_flags(&mut self, flags: u32) {
+        unsafe { (*self.0).priv_flags |= flags as _ };
+    }
+}
+
 // SAFETY: Instances of `Device` are created on the C side. They are always refcounted.
 unsafe impl AlwaysRefCounted for Device {
     fn inc_ref(&self) {
@@ -388,5 +403,37 @@ impl Drop for TcpStream {
     fn drop(&mut self) {
         // SAFETY: The type invariant guarantees that the socket is valid.
         unsafe { bindings::sock_release(self.sock) };
+    }
+}
+
+pub struct NapiStruct {
+    napi: bindings::napi_struct,
+}
+
+impl NapiStruct {
+    fn new() -> Self {
+        Self {
+            napi: bindings::napi_struct,
+        }
+    }
+
+    fn init(
+        &mut self,
+        dev: &Device,
+        poll: Option<
+            unsafe extern "C" fn(
+                arg1: *mut bindings::napi_struct,
+                arg2: c_types::c_int,
+            ) -> c_types::c_int,
+        >,
+        weight: i32,
+    ) -> Result<usize> {
+        bindings::netif_napi_add_weight(
+            dev.0,
+            &mut self.0 as *mut bindings::napi_struct,
+            poll,
+            weight,
+        );
+        Ok(0)
     }
 }

@@ -510,3 +510,17 @@ pub fn system_freezable_power_efficient() -> &'static Queue {
     // SAFETY: `system_freezable_power_efficient_wq` is a C global, always available.
     unsafe { &*bindings::system_freezable_power_efficient_wq.cast() }
 }
+
+
+/// A work item.
+///
+/// Wraps the kernel's C `struct work_struct`.
+///
+/// Users must add a field of this type to a structure, then implement [`WorkAdapter`] so that it
+/// can be queued for execution in a thread pool. Examples of it being used are available in the
+/// documentation for [`Queue`].
+#[repr(transparent)]
+pub struct Work(Opaque<bindings::work_struct>);
+
+#[repr(transparent)]
+pub struct DelayedWork(Opaque<bindings::delayed_work>);

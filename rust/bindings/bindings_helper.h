@@ -22,6 +22,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/netdevice.h>
 #include <linux/netfilter_arp.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>

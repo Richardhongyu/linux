@@ -142,3 +142,14 @@ impl Drop for PageMapping<'_> {
         unsafe { bindings::kunmap(self.page) };
     }
 }
+/// A set of physical pages.
+///
+/// `Pages` holds a reference to a set of pages of order `ORDER`. Having the order as a generic
+/// const allows the struct to have the same size as a pointer.
+///
+/// # Invariants
+///
+/// The pointer `Pages::pages` is valid and points to 2^ORDER pages.
+pub struct PageFrag {
+    pub(crate) page_frag: *mut bindings::page_frag,
+}
