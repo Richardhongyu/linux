@@ -129,13 +129,13 @@ macro_rules! init_work_item_adapter {
 /// ```
 ///
 /// The following example is used to create a work item and enqueue it several times. We note that
-/// enqueuing while the work item is already queued is a no-op, so we enqueue it when it is not
+/// enqueing while the work item is already queued is a no-op, so we enqueue it when it is not
 /// enqueued yet.
 ///
 /// ```
 /// # use kernel::workqueue::{self, Work};
-/// use core::sync::atomic::{AtomicU32, Ordering};
 /// use kernel::sync::UniqueRef;
+/// use core::sync::atomic::{AtomicU32, Ordering};
 ///
 /// struct Example {
 ///     count: AtomicU32,
@@ -174,8 +174,8 @@ macro_rules! init_work_item_adapter {
 ///
 /// ```
 /// # use kernel::workqueue::{self, Work, WorkAdapter};
-/// use core::sync::atomic::{AtomicU32, Ordering};
 /// use kernel::sync::{Ref, UniqueRef};
+/// use core::sync::atomic::{AtomicU32, Ordering};
 ///
 /// struct Example {
 ///     work1: Work,
@@ -420,7 +420,7 @@ impl BoxedQueue {
     ///
     /// # Safety
     ///
-    /// `ptr` must be non-null and valid. Additionally, ownership must be handed over to new
+    /// `ptr` must be non-null and valid. Additionaly, ownership must be handed over to new
     /// instance of [`BoxedQueue`].
     unsafe fn new(ptr: *mut bindings::workqueue_struct) -> Self {
         Self {
@@ -509,4 +509,78 @@ pub fn system_power_efficient() -> &'static Queue {
 pub fn system_freezable_power_efficient() -> &'static Queue {
     // SAFETY: `system_freezable_power_efficient_wq` is a C global, always available.
     unsafe { &*bindings::system_freezable_power_efficient_wq.cast() }
+}
+
+
+/// A work item.
+///
+/// Wraps the kernel's C `struct work_struct`.
+///
+/// Users must add a field of this type to a structure, then implement [`WorkAdapter`] so that it
+/// can be queued for execution in a thread pool. Examples of it being used are available in the
+/// documentation for [`Queue`].
+#[repr(transparent)]
+pub struct DelayedWork(Opaque<bindings::delayed_work>);
+
+impl Work {
+    /// Creates a new instance of [`Work`].
+    ///
+    /// # Safety
+    ///
+    /// Callers must call either [`Work::init`] or [`Work::init_with_adapter`] before the work item
+    /// can be used.
+    pub unsafe fn new() -> Self {
+        Self(Opaque::uninit())
+    }
+
+    /// Initialises the work item.
+    ///
+    /// Users should prefer the [`init_work_item`] macro because it automatically defines a new
+    /// lock class key.
+    pub fn init<T: WorkAdapter<Target = T>>(obj: &UniqueRef<T>, key: &'static LockClassKey) {
+        Self::init_with_adapter::<T>(obj, key)
+    }
+
+    /// Initialises the work item with the given adapter.
+    ///
+    /// Users should prefer the [`init_work_item_adapter`] macro because it automatically defines a
+    /// new lock class key.
+    pub fn init_with_adapter<A: WorkAdapter>(
+        obj: &UniqueRef<A::Target>,
+        key: &'static LockClassKey,
+    ) {
+        let ptr = &**obj as *const _ as *const u8;
+        let field_ptr = ptr.wrapping_offset(A::FIELD_OFFSET) as *mut bindings::work_struct;
+
+        // SAFETY: `work` is valid for writes -- the `UniqueRef` instance guarantees that it has
+        // been allocated and there is only one pointer to it. Additionally, `work_func` is a valid
+        // callback for the work item.
+        unsafe {
+            bindings::__INIT_WORK_WITH_KEY(field_ptr, Some(Self::work_func::<A>), false, key.get())
+        };
+    }
+
+    /// Cancels the work item.
+    ///
+    /// It is ok for this to be called when the work is not queued.
+    pub fn cancel(&self) {
+        // SAFETY: The work is valid (we have a reference to it), and the function can be called
+        // whether the work is queued or not.
+        if unsafe { bindings::cancel_work_sync(self.0.get()) } {
+            // SAFETY: When the work was queued, a call to `into_raw` was made. We just canceled
+            // the work without it having the chance to run, so we need to explicitly destroy this
+            // reference (which would have happened in `work_func` if it did run).
+            unsafe { Ref::from_raw(&*self) };
+        }
+    }
+
+    unsafe extern "C" fn work_func<A: WorkAdapter>(work: *mut bindings::work_struct) {
+        let field_ptr = work as *const _ as *const u8;
+        let ptr = field_ptr.wrapping_offset(-A::FIELD_OFFSET) as *const A::Target;
+
+        // SAFETY: This callback is only ever used by the `init_with_adapter` method, so it is
+        // always the case that the work item is embedded in a `Work` (Self) struct.
+        let w = unsafe { Ref::from_raw(ptr) };
+        A::run(w);
+    }
 }
