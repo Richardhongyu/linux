@@ -11,6 +11,7 @@
 #include <linux/cdev.h>
 #include <linux/clk.h>
 #include <linux/errname.h>
+#include <linux/ethtool.h>
 #include <linux/file.h>
 #include <linux/fs.h>
 #include <linux/gpio/driver.h>
@@ -22,6 +23,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/netdevice.h>
 #include <linux/netfilter_arp.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
