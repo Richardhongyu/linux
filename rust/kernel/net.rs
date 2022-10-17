@@ -146,7 +146,8 @@ impl<T: DeviceOperations> Registration<T> {
                 // for implementers of the net_device operations (no other C code accesses
                 // it), so we know that there are no concurrent threads/CPUs accessing
                 // it (it's not visible to any other Rust code).
-                bindings::dev_set_drvdata(&mut (*self.dev).dev, data.into_pointer() as _);
+                // bindings::dev_set_drvdata(&mut (*self.dev).dev, data.into_pointer() as _);
+                (*bindings::net_priv(self.dev))= T::Data::into_pointer(data) as _;
             }
             Ok(())
         }

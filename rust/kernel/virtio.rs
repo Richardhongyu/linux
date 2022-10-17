@@ -87,7 +87,7 @@ impl<T: Driver> Adapter<T> {
             let mut dev = unsafe { Device::from_ptr(vdev) };
             let data = T::probe(&mut dev)?;
             // SAFETY: `vdev` is guaranteed to be a valid, non-null pointer.
-            unsafe{(*bindings::net_priv(dev))= T::Data::into_pointer(data) as _;}
+            unsafe{(*vdev).priv_ = T::Data::into_pointer(data) as _;}
             Ok(0)
         }
     }

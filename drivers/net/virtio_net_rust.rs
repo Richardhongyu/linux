@@ -277,6 +277,8 @@ impl virtio::Driver for VirtioNetDriver {
             "Virtio::Registrations"
         )?;
 
+        reg.register(data);
+
         Ok(data.into())
     }
 }
