@@ -661,6 +661,13 @@ void *rust_helper_netdev_priv(const struct net_device *dev)
 }
 EXPORT_SYMBOL_GPL(rust_helper_netdev_priv);
 
+bool rust_helper_virtio_has_feature(const struct virtio_device *vdev,
+				      unsigned int fbit)
+{
+	return virtio_has_feature(vdev, fbit);
+}
+EXPORT_SYMBOL_GPL(rust_helper_virtio_has_feature);
+
 /*
  * We use `bindgen`'s `--size_t-is-usize` option to bind the C `size_t` type
  * as the Rust `usize` type, so we can use it in contexts where Rust

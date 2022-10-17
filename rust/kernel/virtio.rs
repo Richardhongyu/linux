@@ -6,7 +6,7 @@
 
 use crate::{
     bindings, device, driver, error::from_kernel_result, str::CStr, to_result,
-    types::PointerWrapper, Result, ThisModule,
+    types::PointerWrapper, Result, ThisModule, Bool,
 };
 
 /// A registration of a virtio driver.
@@ -87,7 +87,7 @@ impl<T: Driver> Adapter<T> {
             let mut dev = unsafe { Device::from_ptr(vdev) };
             let data = T::probe(&mut dev)?;
             // SAFETY: `vdev` is guaranteed to be a valid, non-null pointer.
-            unsafe{(*vdev).priv_ = T::Data::into_pointer(data) as _;}
+            unsafe{(*bindings::net_priv(dev))= T::Data::into_pointer(data) as _;}
             Ok(0)
         }
     }
@@ -143,6 +143,18 @@ impl Device {
     unsafe fn from_ptr(ptr: *mut bindings::virtio_device) -> Self {
         // INVARIANT: The safety requirements of the function ensure the lifetime invariant.
         Self { ptr }
+    }
+
+    pub fn set_priv(&mut self, ptr: u64) {
+        unsafe { (*self.0).priv = ptr as _ };
+    }
+
+    pub fn virtio_device_ready(&mut self) -> Result<usize> {
+        unsafe{from_kernel_err_ptr(bindings::virtio_device_ready(self.0 as *mut bindings::virtio_device))?}
+    }
+
+    pub fn virtio_has_feature(&mut self, feature: u64) -> Bool {
+        unsafe{bindings::virtio_has_feature(self.0 as *mut bindings::virtio_device, feature)}
     }
 }
 

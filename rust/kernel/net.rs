@@ -33,6 +33,57 @@ impl Device {
         let net: ARef<_> = unsafe { &*(res as *const Device) }.into();
         Ok(net)
     }
+
+    pub fn register_netdev(&mut self) -> Result<usize>{
+        unsafe{from_kernel_err_ptr(bindings::register_netdev(self.0 as *mut bindings::net_device))?}
+    }
+
+    pub fn netif_set_real_num_tx_queues(&mut self, txq: u32) {
+        unsafe{bindings::netif_set_real_num_tx_queues(self.0 as *mut bindings::net_device,
+        txq)}
+    }
+
+    pub fn netif_set_real_num_rx_queues(&mut self, rxq: u32) {
+        unsafe{bindings::netif_set_real_num_tx_queues(self.0 as *mut bindings::net_device,
+        rxq)}
+    }
+
+    pub fn priv_flags(&self) -> u32 {
+        unsafe { (*self.0).priv_flags as _ };
+    }
+
+    pub fn set_priv_flags(&mut self, flags: u32) {
+        unsafe { (*self.0).priv_flags = flags as _ };
+    }
+
+    pub fn set_ethtool_ops(&mut self, ops: &'static bindings::ethtool_ops) {
+        unsafe { (*self.0).ethtool_ops = ops};
+    }
+
+    pub fn set_netdev_ops(&mut self, ops: &'static bindings::net_device_ops) {
+        unsafe { (*self.0).netdev_ops = ops};
+    }
+
+    pub fn freatures(&mut self) -> u32 {
+        unsafe { (*self.0).features as _ };
+    }
+
+    pub fn set_freatures(&mut self, features: u32) {
+        unsafe { (*self.0).features = features};
+    }
+
+    pub fn set_vlan_features(&mut self, vlan_features: u32) {
+        unsafe { (*self.0).vlan_features = vlan_features};
+    }
+
+    pub fn set_min_mtu(&mut self, min_mtu: u32) {
+        unsafe { (*self.0).min_mtu = min_mtu};
+    }
+
+    pub fn set_max_mtu(&mut self, max_mtu: u32) {
+        unsafe { (*self.0).max_mtu = max_mtu};
+    }
+
 }
 
 // SAFETY: Instances of `Device` are created on the C side. They are always refcounted.
@@ -45,6 +96,60 @@ unsafe impl AlwaysRefCounted for Device {
     unsafe fn dec_ref(obj: core::ptr::NonNull<Self>) {
         // SAFETY: The safety requirements guarantee that the refcount is nonzero.
         unsafe { bindings::dev_put(obj.cast().as_ptr()) };
+    }
+}
+
+/// Registration structure for a network device.
+pub struct Registration<T: DeviceOperations> {
+    dev: *mut bindings::net_device,
+    registered: bool,
+    _p: PhantomData<T>,
+}
+
+impl<T: DeviceOperations> Registration<T> {
+    /// Creates new instance of registration.
+    pub fn try_new(parent: &dyn device::RawDevice) -> Result<Self> {
+        // SAFETY: FFI call.
+        let dev = unsafe { bindings::alloc_etherdev_mqs(size_of::<*mut u64>(), 1, 1) };
+        if dev.is_null() {
+            Err(ENOMEM)
+        } else {
+            // SAFETY: `dev` was allocated during initialization and is guaranteed to be valid.
+            unsafe { (*dev).dev.parent = parent.raw_device() }
+            Ok(Registration {
+                dev,
+                registered: false,
+                _p: PhantomData,
+            })
+        }
+    }
+
+    /// Returns a network device.
+    /// A driver might configure the device before registration.
+    pub fn dev_get(&self) -> ARef<Device> {
+        unsafe { &*(self.dev as *const Device) }.into()
+    }
+
+    /// Register a network device.
+    pub fn register(&mut self, data: T::Data) -> Result {
+        // SAFETY: `dev` was allocated during initialization and is guaranteed to be valid.
+        let ret = unsafe {
+            (*self.dev).netdev_ops = Self::build_device_ops();
+            bindings::register_netdev(self.dev)
+        };
+        if ret != 0 {
+            Err(Error::from_kernel_errno(ret))
+        } else {
+            self.registered = true;
+            unsafe {
+                // SAFETY: The C contract guarantees that `data` is available
+                // for implementers of the net_device operations (no other C code accesses
+                // it), so we know that there are no concurrent threads/CPUs accessing
+                // it (it's not visible to any other Rust code).
+                bindings::dev_set_drvdata(&mut (*self.dev).dev, data.into_pointer() as _);
+            }
+            Ok(())
+        }
     }
 }
 

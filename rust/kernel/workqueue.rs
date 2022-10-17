@@ -404,6 +404,10 @@ impl Work {
         let w = unsafe { Ref::from_raw(ptr) };
         A::run(w);
     }
+
+    pub fn schedule_work(&mut self) {
+        unsafe{bindings::schedule_work(self.0.get())}
+    }
 }
 
 /// A boxed owned workqueue.
